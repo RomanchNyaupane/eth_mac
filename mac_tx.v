@@ -153,6 +153,7 @@ always @(*) begin
             if(byte_counter == 11'd7) begin
                 next_state = DEST_MAC;
                 tx_fifo_wr_en = 1'b1;
+                tx_fifo_rd_en = 1'b1;
             end else next_state = SFD;
         end
         DEST_MAC: begin
@@ -199,6 +200,7 @@ always @(*) begin
             
             if(runtime_counter == 4'd14) begin
                 next_state = CRC;
+                crc_en = 1'b1;
                 runtime_count_rst = 1'b1;
                 runtime_count_en = 1'b1;
             end else begin
@@ -219,10 +221,7 @@ always @(*) begin
             crc_en = 1'b1;
             //crc calculation was initialized at the start of DEST_MAC state. now time to output the crc value
             runtime_count_en = 1'b1;
-            crc_buffer[0] = crc_out[7:0];
-            crc_buffer[1] = crc_out[15:8];
-            crc_buffer[2] = crc_out[23:16];
-            crc_buffer[3] = crc_out[31:24];
+            
             if(crc_counter == 2'b11) begin
                 next_state = IDLE;
                 runtime_count_en = 1'b0;
@@ -236,13 +235,19 @@ end
 
 //sender block
 always @(posedge clk) begin
-    case({preamble_en, dest_mac_en, src_mac_en, frame_type_en, payload_en, frame_sent})
+    case({preamble_en, dest_mac_en, src_mac_en, frame_type_en, payload_en, crc_en})
         6'b100000: mac_txd <= _PREAMBLE; //preamble and sfd
         6'b010000: mac_txd <= tx_fifo_rd_data;  //destination mac from fifo
         6'b001000: mac_txd <= _SRC_MAC[runtime_counter]; //source mac from register
         6'b000100: mac_txd <= tx_fifo_rd_data;  //frame type from fifo
         6'b000010: mac_txd <= tx_fifo_rd_data;  //payload from fifo
-        6'b000001: frame_over <= frame_sent; //crc from crc module
+        6'b000001: begin //crc from crc module
+            crc_buffer[0] <= crc_out[7:0];
+            crc_buffer[1] <= crc_out[15:8];
+            crc_buffer[2] <= crc_out[23:16];
+            crc_buffer[3] <= crc_out[31:24];
+            frame_over <= frame_sent;
+        end
         default: mac_txd <= mac_txd; //hold last value
     endcase
 end
