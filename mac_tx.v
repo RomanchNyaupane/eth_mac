@@ -12,11 +12,22 @@ module mac_tx(
     output reg [7:0] tx_fifo_wr_data, //data to be written to tx_fifo
 
     output wire [7:0] mac_out,
+    output reg tx_ctl,
     output reg frame_over
 );
 
 //output logic
 assign mac_out = crc_out_en? crc_buffer[crc_counter] : mac_txd;
+
+//phy tx module for byte to nibble conversion
+phy_tx phy_tx_inst(
+    .clk(clk),
+    .rst(rst),
+    .config_ready(config_ready),    
+    .mac_txd(mac_out),
+    .phy_tx_ctl(tx_ctl)
+);
+
 
 wire [31:0] crc_out;
 mac_crc_tx crc_inst(
@@ -236,19 +247,20 @@ end
 //sender block
 always @(posedge clk) begin
     case({preamble_en, dest_mac_en, src_mac_en, frame_type_en, payload_en, crc_en})
-        6'b100000: mac_txd <= _PREAMBLE; //preamble and sfd
-        6'b010000: mac_txd <= tx_fifo_rd_data;  //destination mac from fifo
-        6'b001000: mac_txd <= _SRC_MAC[runtime_counter]; //source mac from register
-        6'b000100: mac_txd <= tx_fifo_rd_data;  //frame type from fifo
-        6'b000010: mac_txd <= tx_fifo_rd_data;  //payload from fifo
+        6'b100000: begin mac_txd <= _PREAMBLE; tx_ctl <= 1; end//preamble and sfd
+        6'b010000: begin mac_txd <= tx_fifo_rd_data; tx_ctl <= 1; end  //destination mac from fifo
+        6'b001000: begin mac_txd <= _SRC_MAC[runtime_counter]; tx_ctl <= 1; end//source mac from register
+        6'b000100: begin mac_txd <= tx_fifo_rd_data; tx_ctl <= 1; end  //frame type from fifo
+        6'b000010: begin mac_txd <= tx_fifo_rd_data; tx_ctl <= 1; end //payload from fifo
         6'b000001: begin //crc from crc module
+            tx_ctl <= 1;
             crc_buffer[0] <= crc_out[7:0];
             crc_buffer[1] <= crc_out[15:8];
             crc_buffer[2] <= crc_out[23:16];
             crc_buffer[3] <= crc_out[31:24];
             frame_over <= frame_sent;
         end
-        default: mac_txd <= mac_txd; //hold last value
+        default: begin mac_txd <= mac_txd; tx_ctl <= 0;end //hold last value
     endcase
 end
 
