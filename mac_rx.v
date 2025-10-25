@@ -1,4 +1,3 @@
-// the ethernet type frame is decoded in this module. this module does not decode 802.3x frames
 module mac_rx(
     input wire clk,
     input wire rst,
