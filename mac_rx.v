@@ -16,7 +16,7 @@ module mac_rx(
     output reg read_complete //let master know read is complete
 );
 
-// module instantiation
+// crc module instantiation 
 wire [31:0] crc_out;
 
 mac_crc_rx crc_inst(
